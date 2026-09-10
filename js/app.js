@@ -2,25 +2,33 @@ import { currentUser, isLoggedIn, login, logout } from "./auth.js";
 import { addItemRow, collectItems, MAX_ITEM_ROWS, resetItems } from "./form.js?v=2";
 import { createBackup, deleteRecord, escapeHtml, getRecords, parseBackup, renderDashboard, replaceRecords, saveRecord, statusClass } from "./dashboard.js";
 import { generateManifest } from "./pdf-generator.js";
+import { withLightTheme } from "./theme.js?v=1";
 
 let records = getRecords();
 let selectedRecord = null;
 let detailTrigger = null;
+let pendingView = "dashboard-view";
 const $ = id => document.getElementById(id);
 
 function setView(viewId) {
   document.querySelectorAll(".sub-view").forEach(view => view.classList.toggle("hidden", view.id !== viewId));
   document.querySelectorAll(".tab-button").forEach(button => button.classList.toggle("active", button.dataset.view === viewId));
 }
+function updateSessionUI() {
+  const loggedIn = isLoggedIn();
+  $("session-user").textContent = loggedIn ? `Admin: ${currentUser()}` : "Mode input guest";
+  $("session-user").classList.toggle("hidden", false);
+  $("logout-button").querySelector(".material-icons-round").textContent = loggedIn ? "logout" : "login";
+  $("session-action-label").textContent = loggedIn ? "Logout" : "Login Dashboard";
+}
 function showApp() {
   $("login-view").classList.add("hidden");
   $("app-view").classList.remove("hidden");
-  $("session-user").textContent = `Admin: ${currentUser()}`;
-  setupBackupActions();
-  setupDashboardTools();
-  render();
+  updateSessionUI();
+  if (isLoggedIn()) { setupBackupActions(); setupDashboardTools(); render(); }
+  setView(isLoggedIn() ? pendingView : "form-view");
 }
-function showLogin() { $("app-view").classList.add("hidden"); $("login-view").classList.remove("hidden"); }
+function showLogin(view = "dashboard-view") { pendingView = view; $("app-view").classList.add("hidden"); $("login-view").classList.remove("hidden"); $("login-username").focus(); }
 function render() { records = getRecords(); updateTenantFilter(records); renderDashboard(records, openDetail, removeBatch); renderTenantSummary(records); }
 function showMessage(element, text, tone = "") { element.textContent = text; element.className = `form-message ${tone}`; if (tone === "error") element.setAttribute("role", "alert"); else if (text) element.setAttribute("role", "status"); else element.removeAttribute("role"); }
 function dashboardFeedback() {
@@ -121,7 +129,7 @@ async function generateSelectedPdf() {
   button.classList.add("opacity-60");
   button.innerHTML = `<span class="material-icons-round">hourglass_top</span>Membuat PDF...`;
   try {
-    await generateManifest(selectedRecord);
+    await withLightTheme(() => generateManifest(selectedRecord));
     button.innerHTML = `<span class="material-icons-round">task_alt</span>PDF berhasil dibuat`;
     showMessage(dashboardFeedback(), `PDF ${selectedRecord.batchId} berhasil dibuat dan dikirim ke folder download browser.`, "success");
   } catch (error) {
@@ -132,14 +140,15 @@ async function generateSelectedPdf() {
   }
 }
 
-$("login-form").addEventListener("submit", event => { event.preventDefault(); const username = $("login-username"); const password = $("login-password"); const ok = login(username.value.trim(), password.value); if (ok) { username.removeAttribute("aria-invalid"); password.removeAttribute("aria-invalid"); showApp(); } else { username.setAttribute("aria-invalid", "true"); password.setAttribute("aria-invalid", "true"); $("login-message").setAttribute("role", "alert"); showMessage($("login-message"), "Username atau password salah.", "error"); } });
+$("login-form").addEventListener("submit", event => { event.preventDefault(); const username = $("login-username"); const password = $("login-password"); const ok = login(username.value.trim(), password.value); if (ok) { username.removeAttribute("aria-invalid"); password.removeAttribute("aria-invalid"); $("login-form").reset(); showApp(); } else { username.setAttribute("aria-invalid", "true"); password.setAttribute("aria-invalid", "true"); $("login-message").setAttribute("role", "alert"); showMessage($("login-message"), "Username atau password salah.", "error"); } });
 $("login-username").addEventListener("input", () => { $("login-username").removeAttribute("aria-invalid"); $("login-password").removeAttribute("aria-invalid"); $("login-message").removeAttribute("role"); showMessage($("login-message"), ""); });
 $("login-password").addEventListener("input", () => { $("login-username").removeAttribute("aria-invalid"); $("login-password").removeAttribute("aria-invalid"); $("login-message").removeAttribute("role"); showMessage($("login-message"), ""); });
-$("logout-button").addEventListener("click", () => { logout(); showLogin(); $("login-form").reset(); });
+$("guest-input-button").addEventListener("click", () => { $("login-view").classList.add("hidden"); $("app-view").classList.remove("hidden"); updateSessionUI(); setView("form-view"); $("batch-id").focus(); });
+$("logout-button").addEventListener("click", () => { if (isLoggedIn()) { logout(); pendingView = "form-view"; updateSessionUI(); setView("form-view"); } else showLogin("dashboard-view"); });
 $("new-batch-button").addEventListener("click", () => { resetForm(); setView("form-view"); });
-document.querySelectorAll(".tab-button").forEach(button => button.addEventListener("click", () => setView(button.dataset.view)));
+document.querySelectorAll(".tab-button").forEach(button => button.addEventListener("click", () => { if (button.dataset.view === "dashboard-view" && !isLoggedIn()) { showLogin("dashboard-view"); return; } setView(button.dataset.view); }));
 $("add-item-button").addEventListener("click", () => { if ($("item-rows").children.length >= MAX_ITEM_ROWS) { showMessage($("form-message"), `Maksimal ${MAX_ITEM_ROWS} barang per batch.`, "error"); return; } addItemRow(); });
-$("qc-form").addEventListener("submit", event => { event.preventDefault(); const form = event.currentTarget; const formMessage = $("form-message"); if (!form.checkValidity()) { form.reportValidity(); return; } const record = { batchId: $("batch-id").value.trim(), date: $("tanggal").value, tenant: $("tenant").value.trim(), officer: $("petugas-qc").value.trim(), vehicle: $("jenis-kendaraan").value, plate: $("plat-nomor").value.trim(), driver: $("nama-pengemudi").value.trim(), phone: $("no-hp").value.trim(), items: collectItems(), notes: $("catatan-qc").value.trim(), status: $("status-qc").value, verified: $("verifikasi-qc").checked }; const invalidItem = record.items.find(item => !item.nama || !item.jumlah || Number(item.jumlah) <= 0 || !item.satuan || !item.kategori); const needsNote = record.status === "Perlu Catatan" || record.items.some(item => item.kondisi === "Perlu Catatan" || item.kondisi === "Rusak"); if (record.items.length > MAX_ITEM_ROWS) { showMessage(formMessage, `Maksimal ${MAX_ITEM_ROWS} barang per batch.`, "error"); return; } if (record.notes.length > 1000) { showMessage(formMessage, "Catatan QC maksimal 1.000 karakter.", "error"); return; } if (invalidItem) { showMessage(formMessage, "Lengkapi nama, jumlah, satuan, dan kategori setiap barang.", "error"); return; } if (!/^\+?[0-9 ()-]{8,20}$/.test(record.phone)) { showMessage(formMessage, "Nomor HP belum valid.", "error"); return; } if (needsNote && !record.notes) { showMessage(formMessage, "Tambahkan catatan QC untuk status atau kondisi yang perlu perhatian.", "error"); return; } if (getRecords().some(existing => existing.batchId.toLowerCase() === record.batchId.toLowerCase())) { showMessage(formMessage, "ID batch sudah digunakan. Gunakan ID yang berbeda.", "error"); return; } showMessage(formMessage, "Menyimpan batch...", "normal"); saveRecord(record); resetForm(); render(); setView("dashboard-view"); showMessage(dashboardFeedback(), "Batch berhasil disimpan di perangkat ini.", "success"); });
+$("qc-form").addEventListener("submit", event => { event.preventDefault(); const form = event.currentTarget; const formMessage = $("form-message"); if (!form.checkValidity()) { form.reportValidity(); return; } const record = { batchId: $("batch-id").value.trim(), date: $("tanggal").value, tenant: $("tenant").value.trim(), officer: $("petugas-qc").value.trim(), vehicle: $("jenis-kendaraan").value, plate: $("plat-nomor").value.trim(), driver: $("nama-pengemudi").value.trim(), phone: $("no-hp").value.trim(), items: collectItems(), notes: $("catatan-qc").value.trim(), status: $("status-qc").value, verified: $("verifikasi-qc").checked }; const invalidItem = record.items.find(item => !item.nama || !item.jumlah || Number(item.jumlah) <= 0 || !item.satuan || !item.kategori); const needsNote = record.status === "Perlu Catatan" || record.items.some(item => item.kondisi === "Perlu Catatan" || item.kondisi === "Rusak"); if (record.items.length > MAX_ITEM_ROWS) { showMessage(formMessage, `Maksimal ${MAX_ITEM_ROWS} barang per batch.`, "error"); return; } if (record.notes.length > 1000) { showMessage(formMessage, "Catatan QC maksimal 1.000 karakter.", "error"); return; } if (invalidItem) { showMessage(formMessage, "Lengkapi nama, jumlah, satuan, dan kategori setiap barang.", "error"); return; } if (!/^\+?[0-9 ()-]{8,20}$/.test(record.phone)) { showMessage(formMessage, "Nomor HP belum valid.", "error"); return; } if (needsNote && !record.notes) { showMessage(formMessage, "Tambahkan catatan QC untuk status atau kondisi yang perlu perhatian.", "error"); return; } if (getRecords().some(existing => existing.batchId.toLowerCase() === record.batchId.toLowerCase())) { showMessage(formMessage, "ID batch sudah digunakan. Gunakan ID yang berbeda.", "error"); return; } showMessage(formMessage, "Menyimpan batch...", "normal"); saveRecord(record); const loggedIn = isLoggedIn(); resetForm(); render(); if (loggedIn) { setView("dashboard-view"); showMessage(dashboardFeedback(), "Batch berhasil disimpan di perangkat ini.", "success"); } else { setView("form-view"); showMessage($("form-message"), "Batch berhasil disimpan. Login diperlukan untuk melihat dashboard history.", "success"); } });
 $("search-batch").addEventListener("input", render);
 $("status-filter").addEventListener("change", render);
 $("close-detail").addEventListener("click", closeDetail);
@@ -160,4 +169,4 @@ document.addEventListener("keydown", event => {
 $("tanggal").value = new Date().toISOString().slice(0, 10);
 configureInputLimits();
 addItemRow();
-if (isLoggedIn()) showApp();
+showApp();

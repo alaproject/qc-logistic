@@ -19,17 +19,26 @@ Membangun Mobile Web App SPA untuk QC Logistik dan Ekspedisi Barang Tenant. Apli
 | Logo | Placeholder `QC` sampai logo brand tersedia |
 | Approval | Checkbox verifikasi mandiri, tanpa tanda tangan digital |
 | Download | File dikirim ke folder download default browser, bukan otomatis ke `assets` |
+| Tema UI | Class-based `dark` pada `<html>`, auto-detect OS, persistence pada localStorage |
+| Tema PDF | Selalu light dengan latar putih saat generate |
 
 ## View dan Alur User
 
-### View 1: Login Administrator
+### View 1: Input QC Guest (Default)
+
+- Form input batch tampil sebagai halaman awal tanpa login.
+- Petugas dapat menyimpan batch baru.
+- Setelah menyimpan, petugas tetap berada di form input.
+- Akses dashboard diarahkan ke login administrator.
+
+### View 2: Login Administrator
 
 - Input username dan password.
 - Menampilkan feedback error yang dapat dibaca screen reader.
 - Menyimpan session setelah credential benar.
 - Menyediakan tombol logout.
 
-### View 2: Dashboard History dan Ringkasan
+### View 3: Dashboard History dan Ringkasan
 
 - Menampilkan total batch.
 - Menampilkan jumlah `Lolos QC`, `Perlu Catatan`, dan batch belum diverifikasi.
@@ -41,7 +50,7 @@ Membangun Mobile Web App SPA untuk QC Logistik dan Ekspedisi Barang Tenant. Apli
 - Menghapus batch dengan konfirmasi.
 - Export/import backup JSON.
 
-### View 3: Form Input QC
+### View 4: Form Input QC Terautentikasi
 
 #### Identitas Batch
 
@@ -133,6 +142,9 @@ PDF dibuat saat user membuka detail batch dan menekan `Generate PDF`. File diund
 - Modal detail dapat ditutup dengan Escape.
 - Focus trap aktif di dalam modal.
 - Fokus dikembalikan ke tombol pembuka setelah modal ditutup.
+- Toggle sun/moon tersedia pada header.
+- Dark mode menggunakan latar `#0f172a` dan surface `#1e293b` dengan kontras tinggi.
+- Form, card, tabel, dan modal menyesuaikan tema.
 
 ## Batasan dan Pekerjaan Lanjutan
 

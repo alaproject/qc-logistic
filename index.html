@@ -14,6 +14,8 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/pdf.css">
   <link rel="stylesheet" href="css/accessibility.css">
+  <link rel="stylesheet" href="css/theme.css">
+  <script type="module" src="js/theme.js?v=1"></script>
 </head>
 <body>
   <div id="app" class="min-h-screen">
@@ -22,19 +24,20 @@
         <div class="brand-mark"><span class="material-icons-round">fact_check</span></div>
         <p class="eyebrow">QC LOGISTIK</p>
         <h1 class="mt-2 text-4xl font-extrabold tracking-tight">Kontrol muatan,<br><span class="text-accent">lebih tenang.</span></h1>
-        <p class="mt-4 max-w-sm text-slate-600">Masuk sebagai administrator untuk mencatat dan meninjau batch ekspedisi tenant.</p>
+        <p class="mt-4 max-w-sm text-slate-600">Login diperlukan untuk membuka dashboard history dan fitur administrasi.</p>
         <form id="login-form" class="panel mt-8 space-y-4" novalidate>
           <div><label for="login-username">Username</label><input id="login-username" required autocomplete="username" placeholder="admin"></div>
           <div><label for="login-password">Password</label><input id="login-password" required type="password" autocomplete="current-password" placeholder="Masukkan password"></div>
           <p id="login-message" class="form-message" aria-live="polite"></p>
-          <button class="primary-button w-full" type="submit"><span class="material-icons-round">login</span>Masuk ke aplikasi</button>
+          <button class="primary-button w-full" type="submit"><span class="material-icons-round">login</span>Masuk ke dashboard</button>
+          <button id="guest-input-button" class="secondary-button w-full" type="button"><span class="material-icons-round">arrow_back</span>Kembali ke input batch</button>
         </form>
         <p class="mt-5 text-center text-xs text-slate-500">MVP lokal untuk operasional QC lapangan</p>
       </div>
     </section>
 
     <section id="app-view" class="view hidden">
-      <header class="app-header"><div class="page-wrap flex flex-wrap items-center justify-between gap-4 py-5"><div class="flex items-center gap-3"><div class="small-mark"><span class="material-icons-round">local_shipping</span></div><div><p class="eyebrow text-teal-100">QC LOGISTIK TENANT</p><h1 class="text-xl font-extrabold text-white">Batch Control Desk</h1></div></div><div class="flex items-center gap-3"><span id="session-user" class="hidden text-sm text-teal-100 sm:block"></span><button id="logout-button" class="ghost-button" type="button"><span class="material-icons-round">logout</span><span class="hidden sm:inline">Logout</span></button></div></div></header>
+      <header class="app-header"><div class="page-wrap flex flex-wrap items-center justify-between gap-4 py-5"><div class="flex items-center gap-3"><div class="small-mark"><span class="material-icons-round">local_shipping</span></div><div><p class="eyebrow text-teal-100">QC LOGISTIK TENANT</p><h1 class="text-xl font-extrabold text-white">Batch Control Desk</h1></div></div><div class="flex items-center gap-2"><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Ganti tema"><span class="material-icons-round">dark_mode</span></button><span id="session-user" class="hidden text-sm text-teal-100 sm:block"></span><button id="logout-button" class="ghost-button" type="button"><span class="material-icons-round">login</span><span id="session-action-label" class="hidden sm:inline">Login Dashboard</span></button></div></div></header>
       <nav class="tab-bar" aria-label="Navigasi utama"><div class="page-wrap flex gap-1 overflow-x-auto"><button class="tab-button active" data-view="dashboard-view" type="button"><span class="material-icons-round">dashboard</span>Dashboard</button><button class="tab-button" data-view="form-view" type="button"><span class="material-icons-round">add_box</span>Input QC</button></div></nav>
       <main class="page-wrap py-7 md:py-10">
         <section id="dashboard-view" class="sub-view"><div class="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><p class="eyebrow text-teal-700">RINGKASAN OPERASIONAL</p><h2 class="page-title">History batch QC</h2><p class="mt-2 text-slate-600">Pantau status pemeriksaan muatan tenant dalam satu tempat.</p></div><button id="new-batch-button" class="primary-button" type="button"><span class="material-icons-round">add</span>Batch baru</button></div><div class="stats-grid"><article class="stat-card"><span class="material-icons-round text-slate-500">inventory_2</span><p>Total batch</p><strong id="stat-total">0</strong></article><article class="stat-card stat-pass"><span class="material-icons-round">verified</span><p>Lolos QC</p><strong id="stat-pass">0</strong></article><article class="stat-card stat-note"><span class="material-icons-round">warning</span><p>Perlu catatan</p><strong id="stat-note">0</strong></article><article class="stat-card stat-pending"><span class="material-icons-round">pending_actions</span><p>Belum verifikasi</p><strong id="stat-pending">0</strong></article></div><div class="panel mt-8"><div class="mb-5 flex flex-col gap-3 md:flex-row"><div class="search-field"><span class="material-icons-round">search</span><input id="search-batch" type="search" placeholder="Cari batch, tenant, plat, pengemudi..." aria-label="Cari batch"></div><select id="status-filter" aria-label="Filter status"><option value="Semua">Semua status</option><option>Lolos QC</option><option>Perlu Catatan</option><option>Ditahan</option></select></div><div id="batch-list" class="batch-grid"></div><div id="empty-state" class="empty-state hidden"><span class="material-icons-round">inventory</span><p>Belum ada batch yang sesuai.</p></div></div></section>
@@ -45,6 +48,6 @@
   <div id="detail-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div class="modal-card"><div class="modal-head"><div><p class="eyebrow text-teal-700">DETAIL BATCH</p><h2 id="detail-title" class="text-xl font-extrabold"></h2></div><button id="close-detail" class="icon-button" type="button" aria-label="Tutup detail"><span class="material-icons-round">close</span></button></div><div id="detail-content" class="modal-content"></div><div class="modal-actions"><button id="print-detail" class="primary-button" type="button"><span class="material-icons-round">picture_as_pdf</span>Generate PDF</button></div></div></div>
   <div id="manifest-print" class="manifest-page" aria-hidden="true"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <script type="module" src="js/app.js?v=11"></script>
+  <script type="module" src="js/app.js?v=13"></script>
 </body>
 </html>

@@ -6,8 +6,8 @@ QC Logistik Tenant adalah Mobile Web App berbasis SPA untuk membantu petugas lap
 
 Aplikasi ini dibuat untuk menggantikan pencatatan QC yang tersebar dengan alur yang lebih terstruktur:
 
-1. Administrator masuk ke aplikasi.
-2. Petugas membuat batch QC baru.
+1. Petugas langsung membuka form input batch tanpa login.
+2. Administrator login hanya saat membutuhkan dashboard dan fitur administrasi.
 3. Data tenant, armada, pengemudi, dan barang dicatat.
 4. Setiap barang diberi kategori dan kondisi fisik.
 5. Batch diberi status dan dapat diverifikasi.
@@ -18,7 +18,9 @@ Aplikasi ini cocok untuk MVP, demo operasional, atau penggunaan lokal terbatas. 
 
 ## Fitur Saat Ini
 
-- Login administrator hardcode dan logout.
+- Input batch tersedia tanpa login.
+- Login administrator hardcode untuk dashboard dan fitur administrasi.
+- Logout mengembalikan aplikasi ke mode input guest.
 - Session login menggunakan `localStorage`.
 - Form QC dengan tiga kelompok data:
   - Identitas batch.
@@ -41,6 +43,7 @@ Aplikasi ini cocok untuk MVP, demo operasional, atau penggunaan lokal terbatas. 
 - QR SVG dummy berdasarkan ID batch.
 - Logo placeholder dan area verifikasi/tanda tangan.
 - Responsive layout untuk mobile, tablet, dan desktop.
+- Light/Dark Mode dengan auto-detect preferensi OS dan persistence localStorage.
 - Google Material Icons Round.
 
 ## Tech Stack
@@ -91,6 +94,14 @@ Session login disimpan pada key:
 qc_logistic_session
 ```
 
+Preferensi tema disimpan pada key:
+
+```text
+theme
+```
+
+Tema mengikuti preferensi OS saat pertama kali dibuka. Setelah user menekan toggle, pilihan `light` atau `dark` menjadi preferensi yang tersimpan.
+
 Backup JSON memiliki struktur umum:
 
 ```json
@@ -113,11 +124,14 @@ Manifes-QC-[ID-BATCH].pdf
 
 Browser mengunduh file ke folder download yang dikonfigurasi browser. Pada workspace ini folder download telah diarahkan ke `assets`, sehingga beberapa artefak PDF dan backup hasil pengujian dapat terlihat di folder tersebut. JavaScript browser sendiri tidak memaksa lokasi itu tanpa konfigurasi browser atau izin File System Access API.
 
+PDF selalu dirender dalam tema light dengan latar putih meskipun aplikasi sedang memakai dark mode, sehingga dokumen tetap sesuai standar cetak dan hemat tinta.
+
 ## Struktur Dokumentasi
 
 - [TODO.md](TODO.md): checklist per part, acceptance criteria, status implementasi, dan Definition of Done.
 - [requirement.md](requirement.md): requirement awal dan keputusan implementasi MVP.
 - [struktur.md](struktur.md): struktur file, ownership modul, dan alur data.
+- [assets/TODO.md](assets/TODO.md): checklist logo, aset brand, dan artefak download.
 
 ## Batasan Keamanan dan Produksi
 
