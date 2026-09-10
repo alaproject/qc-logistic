@@ -17,7 +17,7 @@ export function addItemRow(item = {}) {
 }
 
 export function collectItems() {
-  return [...itemRows().querySelectorAll(".item-row")].map(row => Object.fromEntries([...row.querySelectorAll("[data-item]")].map(field => [field.dataset.item, field.value.trim()])));
+  return [...itemRows().querySelectorAll(".item-row")].map(row => Object.fromEntries([...row.querySelectorAll("[data-item]")].map(field => [field.dataset.item, field.dataset.item === "jumlah" ? Number(field.value) : field.value.trim()])));
 }
 
 export function resetItems() {

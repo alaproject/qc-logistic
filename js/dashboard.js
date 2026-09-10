@@ -1,8 +1,50 @@
 const DATA_KEY = "qc_logistic_batches";
+const DRAFT_KEY = "qc_logistic_guest_draft";
+const TEMP_BACKUP_KEY = "qc_logistic_import_backup";
 export const DATA_VERSION = 1;
+export const DATA_LIMIT_BYTES = 5 * 1024 * 1024;
+export const MAX_RECORD_ITEMS = 20;
+
+const VALID_STATUSES = ["Lolos QC", "Perlu Catatan", "Ditahan"];
+const VALID_ITEM_CATEGORIES = ["Bahan Baku", "Alat Perkakas"];
+const VALID_ITEM_CONDITIONS = ["Baik", "Perlu Catatan", "Rusak"];
+
+function isDateString(value) {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
+}
+
+function bytesFor(value) {
+  if (typeof Blob !== "undefined") return new Blob([value]).size;
+  return new TextEncoder().encode(value).length;
+}
+
+function ensureStorageBounds(records) {
+  const json = JSON.stringify(records);
+  const totalBytes = bytesFor(json);
+  if (totalBytes > DATA_LIMIT_BYTES) {
+    throw new Error(`Kapasitas penyimpanan lokal hampir penuh (${(totalBytes / (1024 * 1024)).toFixed(1)} MB). Export backup atau hapus batch lama sebelum menyimpan.`);
+  }
+  const itemTotal = records.reduce((sum, record) => sum + (Array.isArray(record.items) ? record.items.length : 0), 0);
+  if (itemTotal > MAX_RECORD_ITEMS * 25) {
+    throw new Error("Jumlah item terlalu besar untuk data lokal. Hapus beberapa batch atau export backup untuk membebaskan ruang.");
+  }
+}
 
 function isValidRecord(record) {
-  return record && typeof record === "object" && typeof record.batchId === "string" && record.batchId.trim() && typeof record.tenant === "string" && Array.isArray(record.items);
+  if (!record || typeof record !== "object") return false;
+  if (typeof record.batchId !== "string" || !record.batchId.trim()) return false;
+  if (typeof record.tenant !== "string" || !record.tenant.trim()) return false;
+  if (typeof record.officer !== "string" || !record.officer.trim()) return false;
+  if (typeof record.date !== "string" || !isDateString(record.date)) return false;
+  if (typeof record.status !== "string" || !VALID_STATUSES.includes(record.status)) return false;
+  if (typeof record.verified !== "boolean") return false;
+  if (!Array.isArray(record.items) || record.items.length === 0 || record.items.length > MAX_RECORD_ITEMS) return false;
+  if (typeof record.vehicle !== "string" || !record.vehicle.trim()) return false;
+  if (typeof record.plate !== "string" || !record.plate.trim()) return false;
+  if (typeof record.driver !== "string" || !record.driver.trim()) return false;
+  if (typeof record.phone !== "string" || !record.phone.trim()) return false;
+  if (typeof record.notes !== "string") return false;
+  return record.items.every(item => item && typeof item === "object" && typeof item.nama === "string" && item.nama.trim() && typeof item.jumlah === "number" && Number.isFinite(item.jumlah) && item.jumlah > 0 && typeof item.satuan === "string" && item.satuan.trim() && VALID_ITEM_CATEGORIES.includes(item.kategori) && VALID_ITEM_CONDITIONS.includes(item.kondisi));
 }
 
 function validRecords(records) {
@@ -11,37 +53,134 @@ function validRecords(records) {
 
 export function getRecords() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(DATA_KEY) || "[]");
-    return validRecords(Array.isArray(parsed) ? parsed : parsed.records);
-  } catch { return []; }
+    const raw = localStorage.getItem(DATA_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const source = Array.isArray(parsed) ? parsed : parsed?.records;
+    return validRecords(source);
+  } catch {
+    return [];
+  }
 }
+
 export function saveRecord(record) {
-  const records = getRecords();
-  records.unshift({ ...record, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), createdAt: new Date().toISOString() });
-  localStorage.setItem(DATA_KEY, JSON.stringify(records));
-  return records;
+  const next = [{ ...record, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), createdAt: new Date().toISOString() }, ...getRecords()];
+  if (!isValidRecord(next[0])) {
+    throw new Error("Data batch tidak valid. Periksa field wajib, status, tanggal, dan daftar barang sebelum menyimpan.");
+  }
+  try {
+    ensureStorageBounds(next);
+    localStorage.setItem(DATA_KEY, JSON.stringify(next));
+    clearGuestDraft();
+    return next;
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : "Data belum tersimpan. Export backup atau hapus data lama, lalu coba lagi.";
+    throw new Error(message);
+  }
 }
+
 export function deleteRecord(id) {
   const records = getRecords().filter(record => record.id !== id);
-  localStorage.setItem(DATA_KEY, JSON.stringify(records));
-  return records;
+  try {
+    localStorage.setItem(DATA_KEY, JSON.stringify(records));
+    return records;
+  } catch {
+    throw new Error("Data belum terhapus. Kapasitas penyimpanan penuh. Export backup atau hapus data lama terlebih dahulu.");
+  }
 }
+
 export function createBackup(records = getRecords()) {
-  return { version: DATA_VERSION, exportedAt: new Date().toISOString(), records: validRecords(records) };
+  const valid = validRecords(records);
+  return { version: DATA_VERSION, exportedAt: new Date().toISOString(), records: valid };
 }
+
 export function parseBackup(value) {
   const parsed = typeof value === "string" ? JSON.parse(value) : value;
   const records = Array.isArray(parsed) ? parsed : parsed?.records;
+  if (!parsed || typeof parsed !== "object") throw new Error("Format backup tidak valid.");
+  if (!("version" in parsed) || parsed.version !== DATA_VERSION) {
+    throw new Error(`Schema version backup tidak didukung. Versi yang diterima: ${DATA_VERSION}.`);
+  }
   if (!Array.isArray(records)) throw new Error("Format backup tidak valid.");
   const valid = validRecords(records);
-  if (valid.length !== records.length) throw new Error("Backup berisi record yang tidak valid.");
-  return valid;
+  const result = valid;
+  result.rejectedCount = Math.max(records.length - valid.length, 0);
+  if (result.rejectedCount > 0) {
+    const message = `Backup berisi ${result.rejectedCount} record yang ditolak karena data tidak valid.`;
+    console.warn(message);
+  }
+  return result;
 }
+
 export function replaceRecords(records) {
   const valid = validRecords(records);
-  localStorage.setItem(DATA_KEY, JSON.stringify(valid));
-  return valid;
+  try {
+    ensureStorageBounds(valid);
+    localStorage.setItem(DATA_KEY, JSON.stringify(valid));
+    return valid;
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : "Data belum tersimpan. Export backup atau hapus data lama, lalu coba lagi.";
+    throw new Error(message);
+  }
 }
+
+export function getGuestDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveGuestDraft(draft) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    return true;
+  } catch {
+    throw new Error("Draft belum tersimpan. Data form mungkin terlalu besar untuk localStorage.");
+  }
+}
+
+export function clearGuestDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // ignore cleanup errors when storage is already unstable
+  }
+}
+
+export function createImportBackup() {
+  const backup = createBackup(getRecords());
+  try {
+    localStorage.setItem(TEMP_BACKUP_KEY, JSON.stringify(backup));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function restoreImportBackup() {
+  try {
+    const raw = localStorage.getItem(TEMP_BACKUP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.records) ? parseBackup(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearImportBackup() {
+  try {
+    localStorage.removeItem(TEMP_BACKUP_KEY);
+  } catch {
+    // ignore cleanup errors when storage is already unstable
+  }
+}
+
 export function statusClass(status) { return status === "Lolos QC" ? "status-pass" : status === "Perlu Catatan" ? "status-note" : "status-hold"; }
 export function escapeHtml(value = "") { return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char])); }
 export function renderDashboard(records, onDetail, onDelete) {

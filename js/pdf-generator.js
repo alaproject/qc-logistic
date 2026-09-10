@@ -16,12 +16,66 @@ function qrSvg(value) {
 }
 
 export function generateManifest(record) {
+  if (!record || typeof record !== "object") {
+    throw new Error("Pilih batch yang valid sebelum membuat PDF.");
+  }
   const target = document.getElementById("manifest-print");
-  const items = record.items.map((item, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(item.nama)}</td><td>${escapeHtml(item.jumlah)} ${escapeHtml(item.satuan)}</td><td>${escapeHtml(item.kategori)}</td><td>${escapeHtml(item.kondisi)}</td></tr>`).join("");
-  target.innerHTML = `<div class="manifest-head"><div class="manifest-brand"><div class="manifest-logo">QC</div><div><p class="manifest-kicker">QC LOGISTIK TENANT</p><h1>SURAT JALAN / MANIFES QC</h1><p class="manifest-subtitle">Dokumen pemeriksaan kualitas muatan</p></div></div><div class="manifest-code">${qrSvg(record.batchId)}<strong>${escapeHtml(record.batchId)}</strong><span>${escapeHtml(record.date)}</span></div></div><div class="manifest-info"><div><strong>Tenant</strong><br>${escapeHtml(record.tenant)}<br><br><strong>Petugas QC</strong><br>${escapeHtml(record.officer)}</div><div><strong>Armada</strong><br>${escapeHtml(record.vehicle)} / ${escapeHtml(record.plate)}<br><br><strong>Pengemudi</strong><br>${escapeHtml(record.driver)} (${escapeHtml(record.phone)})</div></div><table><thead><tr><th>No.</th><th>Nama barang</th><th>Jumlah</th><th>Kategori</th><th>Kondisi</th></tr></thead><tbody>${items}</tbody></table><div class="manifest-note"><strong>Status: ${escapeHtml(record.status)}</strong><br>Catatan: ${escapeHtml(record.notes || "Tidak ada catatan.")}</div><div class="manifest-signatures"><div><span>Petugas QC</span><div class="signature-line"></div><strong>${escapeHtml(record.officer)}</strong></div><div><span>Verifikasi Mandiri</span><div class="signature-line"></div><strong>${record.verified ? "Terverifikasi" : "Belum diverifikasi"}</strong></div></div><p class="manifest-footer">Dokumen dibuat dari QC Logistik Tenant · ${escapeHtml(new Date().toLocaleString("id-ID"))}</p>`;
+  if (!target) {
+    throw new Error("Template manifest PDF tidak tersedia.");
+  }
+  if (!window.html2pdf) {
+    throw new Error("Library PDF belum siap. Silakan muat ulang halaman dan coba lagi.");
+  }
+
+  const itemRows = (record.items || []).map((item, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(item?.nama || "-")}</td><td>${escapeHtml(item?.jumlah ?? 0)} ${escapeHtml(item?.satuan || "unit")}</td><td>${escapeHtml(item?.kategori || "-")}</td><td>${escapeHtml(item?.kondisi || "-")}</td></tr>`).join("");
+  const batchId = String(record.batchId || "").trim();
+  const date = String(record.date || "").trim();
+  const tenant = String(record.tenant || "").trim();
+  const officer = String(record.officer || "").trim();
+  const vehicle = String(record.vehicle || "").trim();
+  const plate = String(record.plate || "").trim();
+  const driver = String(record.driver || "").trim();
+  const phone = String(record.phone || "").trim();
+  const status = String(record.status || "").trim();
+  const notes = String(record.notes || "Tidak ada catatan.");
+
+  target.innerHTML = `
+    <div class="manifest-sheet">
+      <div class="manifest-head">
+        <div class="manifest-brand">
+          <div class="manifest-logo">QC</div>
+          <div>
+            <p class="manifest-kicker">QC LOGISTIK TENANT</p>
+            <h1>SURAT JALAN / MANIFES QC</h1>
+            <p class="manifest-subtitle">Dokumen pemeriksaan kualitas muatan</p>
+          </div>
+        </div>
+        <div class="manifest-code">${qrSvg(batchId)}<strong>${escapeHtml(batchId)}</strong><span>${escapeHtml(date)}</span></div>
+      </div>
+      <div class="manifest-info">
+        <div><strong>Tenant</strong><br>${escapeHtml(tenant)}<br><br><strong>Petugas QC</strong><br>${escapeHtml(officer)}</div>
+        <div><strong>Armada</strong><br>${escapeHtml(vehicle)} / ${escapeHtml(plate)}<br><br><strong>Pengemudi</strong><br>${escapeHtml(driver)} (${escapeHtml(phone)})</div>
+      </div>
+      <table>
+        <thead><tr><th>No.</th><th>Nama barang</th><th>Jumlah</th><th>Kategori</th><th>Kondisi</th></tr></thead>
+        <tbody>${itemRows || `<tr><td colspan="5">Tidak ada data barang untuk batch ini.</td></tr>`}</tbody>
+      </table>
+      <div class="manifest-note"><strong>Status: ${escapeHtml(status)}</strong><br>Catatan: ${escapeHtml(notes)}</div>
+      <div class="manifest-signatures">
+        <div><span>Petugas QC</span><div class="signature-line"></div><strong>${escapeHtml(officer)}</strong></div>
+        <div><span>Verifikasi Mandiri</span><div class="signature-line"></div><strong>${record.verified ? "Terverifikasi" : "Belum diverifikasi"}</strong></div>
+      </div>
+      <p class="manifest-footer">Dokumen dibuat dari QC Logistik Tenant · ${escapeHtml(new Date().toLocaleString("id-ID"))}</p>
+    </div>`;
+
   target.classList.add("visible");
-  const filename = `Manifes-QC-${record.batchId}.pdf`;
+  const source = target.querySelector(".manifest-sheet") || target;
+  const filename = `Manifes-QC-${batchId || "batch"}.pdf`;
   const options = { margin: 0, filename, image: { type: "jpeg", quality: .98 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" }, pagebreak: { mode: ["css", "legacy"] }, jsPDF: { unit: "pt", format: "a4", orientation: "portrait" } };
-  const cleanup = () => target.classList.remove("visible");
-  return window.html2pdf().set(options).from(target.querySelector(".manifest-sheet") || target).save().then(() => { cleanup(); }, error => { cleanup(); throw error; });
+  const cleanup = () => {
+    target.classList.remove("visible");
+    target.innerHTML = "";
+  };
+
+  return window.html2pdf().set(options).from(source).save().then(() => { cleanup(); }, error => { cleanup(); throw error; });
 }
