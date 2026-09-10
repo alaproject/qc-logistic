@@ -1,10 +1,11 @@
 import { currentUser, isLoggedIn, login, logout } from "./auth.js";
-import { addItemRow, collectItems, resetItems } from "./form.js";
+import { addItemRow, collectItems, MAX_ITEM_ROWS, resetItems } from "./form.js?v=2";
 import { createBackup, deleteRecord, escapeHtml, getRecords, parseBackup, renderDashboard, replaceRecords, saveRecord, statusClass } from "./dashboard.js";
 import { generateManifest } from "./pdf-generator.js";
 
 let records = getRecords();
 let selectedRecord = null;
+let detailTrigger = null;
 const $ = id => document.getElementById(id);
 
 function setView(viewId) {
@@ -21,7 +22,7 @@ function showApp() {
 }
 function showLogin() { $("app-view").classList.add("hidden"); $("login-view").classList.remove("hidden"); }
 function render() { records = getRecords(); updateTenantFilter(records); renderDashboard(records, openDetail, removeBatch); renderTenantSummary(records); }
-function showMessage(element, text, tone = "") { element.textContent = text; element.className = `form-message ${tone}`; }
+function showMessage(element, text, tone = "") { element.textContent = text; element.className = `form-message ${tone}`; if (tone === "error") element.setAttribute("role", "alert"); else if (text) element.setAttribute("role", "status"); else element.removeAttribute("role"); }
 function dashboardFeedback() {
   let feedback = $("dashboard-feedback");
   if (!feedback) {
@@ -97,15 +98,39 @@ function renderTenantSummary(batchRecords) {
   summary.innerHTML = entries.length ? `<div class="eyebrow text-teal-700">RINGKASAN PER TENANT</div><div class="tenant-summary-list grid gap-2 mt-3 sm:grid-cols-2 lg:grid-cols-4">${entries.map(([tenant, total]) => `<div class="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm"><span>${escapeHtml(tenant)}</span><strong class="mono">${total}</strong></div>`).join("")}</div>` : "";
 }
 function resetForm() { $("qc-form").reset(); $("tanggal").value = new Date().toISOString().slice(0, 10); resetItems(); showMessage($("form-message"), ""); }
-function openDetail(record) {
+function configureInputLimits() {
+  [["batch-id", 60], ["tenant", 120], ["petugas-qc", 120], ["plat-nomor", 20], ["nama-pengemudi", 120], ["no-hp", 20], ["catatan-qc", 1000]].forEach(([id, maxLength]) => { $(id).maxLength = maxLength; });
+}
+function openDetail(record, trigger = null) {
   if (!record) return;
   selectedRecord = record;
+  detailTrigger = trigger;
   $("detail-title").textContent = record.batchId;
   $("detail-content").innerHTML = `<div class="flex items-center justify-between gap-3"><strong class="text-lg">${escapeHtml(record.tenant)}</strong><span class="status-badge ${statusClass(record.status)}">${escapeHtml(record.status)}</span></div><div class="detail-grid mt-6"><div><div class="detail-label">Tanggal QC</div><div class="detail-value">${escapeHtml(record.date)}</div></div><div><div class="detail-label">Petugas</div><div class="detail-value">${escapeHtml(record.officer)}</div></div><div><div class="detail-label">Armada</div><div class="detail-value">${escapeHtml(record.vehicle)}</div></div><div><div class="detail-label">Plat nomor</div><div class="detail-value">${escapeHtml(record.plate)}</div></div><div><div class="detail-label">Pengemudi</div><div class="detail-value">${escapeHtml(record.driver)}</div></div><div><div class="detail-label">No. HP</div><div class="detail-value">${escapeHtml(record.phone)}</div></div></div><div class="detail-items"><table><thead><tr><th>Barang</th><th>Jumlah</th><th>Kategori</th><th>Kondisi</th></tr></thead><tbody>${record.items.map(item => `<tr><td>${escapeHtml(item.nama)}</td><td>${escapeHtml(item.jumlah)} ${escapeHtml(item.satuan)}</td><td>${escapeHtml(item.kategori)}</td><td>${escapeHtml(item.kondisi)}</td></tr>`).join("")}</tbody></table></div><div class="mt-5 rounded-lg bg-slate-50 p-4 text-sm"><strong>Catatan QC</strong><p class="mt-2 whitespace-pre-wrap">${escapeHtml(record.notes || "Tidak ada catatan.")}</p></div><p class="mt-4 text-sm font-bold ${record.verified ? "text-teal-700" : "text-slate-500"}">${record.verified ? "✓ Data telah diverifikasi QC" : "○ Data belum diverifikasi QC"}</p>`;
+  $("detail-modal").setAttribute("aria-hidden", "false");
   $("detail-modal").classList.remove("hidden");
+  $("close-detail").focus();
 }
-function closeDetail() { $("detail-modal").classList.add("hidden"); selectedRecord = null; }
+function closeDetail() { $("detail-modal").setAttribute("aria-hidden", "true"); $("detail-modal").classList.add("hidden"); selectedRecord = null; if (detailTrigger?.isConnected) detailTrigger.focus(); detailTrigger = null; }
+function modalFocusables() { return [...$("detail-modal").querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])")].filter(element => !element.disabled && element.offsetParent !== null); }
 function removeBatch(id) { if (confirm("Hapus batch ini?")) { deleteRecord(id); render(); } }
+async function generateSelectedPdf() {
+  if (!selectedRecord) return;
+  const button = $("print-detail");
+  button.disabled = true;
+  button.classList.add("opacity-60");
+  button.innerHTML = `<span class="material-icons-round">hourglass_top</span>Membuat PDF...`;
+  try {
+    await generateManifest(selectedRecord);
+    button.innerHTML = `<span class="material-icons-round">task_alt</span>PDF berhasil dibuat`;
+    showMessage(dashboardFeedback(), `PDF ${selectedRecord.batchId} berhasil dibuat dan dikirim ke folder download browser.`, "success");
+  } catch (error) {
+    button.innerHTML = `<span class="material-icons-round">error</span>PDF gagal dibuat`;
+    showMessage(dashboardFeedback(), error.message || "PDF tidak dapat dibuat.", "error");
+  } finally {
+    setTimeout(() => { button.disabled = false; button.classList.remove("opacity-60"); button.innerHTML = `<span class="material-icons-round">picture_as_pdf</span>Generate PDF`; }, 2500);
+  }
+}
 
 $("login-form").addEventListener("submit", event => { event.preventDefault(); const username = $("login-username"); const password = $("login-password"); const ok = login(username.value.trim(), password.value); if (ok) { username.removeAttribute("aria-invalid"); password.removeAttribute("aria-invalid"); showApp(); } else { username.setAttribute("aria-invalid", "true"); password.setAttribute("aria-invalid", "true"); $("login-message").setAttribute("role", "alert"); showMessage($("login-message"), "Username atau password salah.", "error"); } });
 $("login-username").addEventListener("input", () => { $("login-username").removeAttribute("aria-invalid"); $("login-password").removeAttribute("aria-invalid"); $("login-message").removeAttribute("role"); showMessage($("login-message"), ""); });
@@ -113,14 +138,26 @@ $("login-password").addEventListener("input", () => { $("login-username").remove
 $("logout-button").addEventListener("click", () => { logout(); showLogin(); $("login-form").reset(); });
 $("new-batch-button").addEventListener("click", () => { resetForm(); setView("form-view"); });
 document.querySelectorAll(".tab-button").forEach(button => button.addEventListener("click", () => setView(button.dataset.view)));
-$("add-item-button").addEventListener("click", () => addItemRow());
-$("qc-form").addEventListener("submit", event => { event.preventDefault(); const form = event.currentTarget; const formMessage = $("form-message"); if (!form.checkValidity()) { form.reportValidity(); return; } const record = { batchId: $("batch-id").value.trim(), date: $("tanggal").value, tenant: $("tenant").value.trim(), officer: $("petugas-qc").value.trim(), vehicle: $("jenis-kendaraan").value, plate: $("plat-nomor").value.trim(), driver: $("nama-pengemudi").value.trim(), phone: $("no-hp").value.trim(), items: collectItems(), notes: $("catatan-qc").value.trim(), status: $("status-qc").value, verified: $("verifikasi-qc").checked }; const invalidItem = record.items.find(item => !item.nama || !item.jumlah || Number(item.jumlah) <= 0 || !item.satuan || !item.kategori); const needsNote = record.status === "Perlu Catatan" || record.items.some(item => item.kondisi === "Perlu Catatan" || item.kondisi === "Rusak"); if (invalidItem) { showMessage(formMessage, "Lengkapi nama, jumlah, satuan, dan kategori setiap barang.", "error"); return; } if (!/^\+?[0-9 ()-]{8,20}$/.test(record.phone)) { showMessage(formMessage, "Nomor HP belum valid.", "error"); return; } if (needsNote && !record.notes) { showMessage(formMessage, "Tambahkan catatan QC untuk status atau kondisi yang perlu perhatian.", "error"); return; } if (getRecords().some(existing => existing.batchId.toLowerCase() === record.batchId.toLowerCase())) { showMessage(formMessage, "ID batch sudah digunakan. Gunakan ID yang berbeda.", "error"); return; } showMessage(formMessage, "Menyimpan batch...", "normal"); saveRecord(record); resetForm(); render(); setView("dashboard-view"); showMessage(dashboardFeedback(), "Batch berhasil disimpan di perangkat ini.", "success"); });
+$("add-item-button").addEventListener("click", () => { if ($("item-rows").children.length >= MAX_ITEM_ROWS) { showMessage($("form-message"), `Maksimal ${MAX_ITEM_ROWS} barang per batch.`, "error"); return; } addItemRow(); });
+$("qc-form").addEventListener("submit", event => { event.preventDefault(); const form = event.currentTarget; const formMessage = $("form-message"); if (!form.checkValidity()) { form.reportValidity(); return; } const record = { batchId: $("batch-id").value.trim(), date: $("tanggal").value, tenant: $("tenant").value.trim(), officer: $("petugas-qc").value.trim(), vehicle: $("jenis-kendaraan").value, plate: $("plat-nomor").value.trim(), driver: $("nama-pengemudi").value.trim(), phone: $("no-hp").value.trim(), items: collectItems(), notes: $("catatan-qc").value.trim(), status: $("status-qc").value, verified: $("verifikasi-qc").checked }; const invalidItem = record.items.find(item => !item.nama || !item.jumlah || Number(item.jumlah) <= 0 || !item.satuan || !item.kategori); const needsNote = record.status === "Perlu Catatan" || record.items.some(item => item.kondisi === "Perlu Catatan" || item.kondisi === "Rusak"); if (record.items.length > MAX_ITEM_ROWS) { showMessage(formMessage, `Maksimal ${MAX_ITEM_ROWS} barang per batch.`, "error"); return; } if (record.notes.length > 1000) { showMessage(formMessage, "Catatan QC maksimal 1.000 karakter.", "error"); return; } if (invalidItem) { showMessage(formMessage, "Lengkapi nama, jumlah, satuan, dan kategori setiap barang.", "error"); return; } if (!/^\+?[0-9 ()-]{8,20}$/.test(record.phone)) { showMessage(formMessage, "Nomor HP belum valid.", "error"); return; } if (needsNote && !record.notes) { showMessage(formMessage, "Tambahkan catatan QC untuk status atau kondisi yang perlu perhatian.", "error"); return; } if (getRecords().some(existing => existing.batchId.toLowerCase() === record.batchId.toLowerCase())) { showMessage(formMessage, "ID batch sudah digunakan. Gunakan ID yang berbeda.", "error"); return; } showMessage(formMessage, "Menyimpan batch...", "normal"); saveRecord(record); resetForm(); render(); setView("dashboard-view"); showMessage(dashboardFeedback(), "Batch berhasil disimpan di perangkat ini.", "success"); });
 $("search-batch").addEventListener("input", render);
 $("status-filter").addEventListener("change", render);
 $("close-detail").addEventListener("click", closeDetail);
 $("detail-modal").addEventListener("click", event => { if (event.target === event.currentTarget) closeDetail(); });
-$("print-detail").addEventListener("click", () => selectedRecord && generateManifest(selectedRecord));
+$("print-detail").addEventListener("click", generateSelectedPdf);
+document.addEventListener("keydown", event => {
+  if ($("detail-modal").classList.contains("hidden")) return;
+  if (event.key === "Escape") { event.preventDefault(); closeDetail(); return; }
+  if (event.key !== "Tab") return;
+  const focusables = modalFocusables();
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
 
 $("tanggal").value = new Date().toISOString().slice(0, 10);
+configureInputLimits();
 addItemRow();
 if (isLoggedIn()) showApp();

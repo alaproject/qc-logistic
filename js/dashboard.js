@@ -63,6 +63,6 @@ export function renderDashboard(records, onDetail, onDelete) {
   const emptyState = document.getElementById("empty-state");
   emptyState.querySelector("p").textContent = records.length === 0 ? "Belum ada batch yang tersimpan." : "Tidak ada batch yang cocok dengan pencarian atau filter.";
   emptyState.classList.toggle("hidden", filtered.length > 0);
-  list.querySelectorAll(".detail-button").forEach(button => button.addEventListener("click", () => onDetail(records.find(record => record.id === button.dataset.id))));
+  list.querySelectorAll(".detail-button").forEach(button => button.addEventListener("click", () => onDetail(records.find(record => record.id === button.dataset.id), button)));
   list.querySelectorAll(".delete-button").forEach(button => button.addEventListener("click", () => onDelete(button.dataset.id)));
 }

@@ -1,4 +1,5 @@
 let itemCounter = 0;
+export const MAX_ITEM_ROWS = 20;
 const itemRows = () => document.getElementById("item-rows");
 
 export function addItemRow(item = {}) {
@@ -10,6 +11,9 @@ export function addItemRow(item = {}) {
     if (itemRows().children.length > 1) row.remove();
   });
   itemRows().appendChild(row);
+  row.querySelector('[data-item="nama"]').maxLength = 120;
+  row.querySelector('[data-item="jumlah"]').max = 1000000;
+  row.querySelector('[data-item="satuan"]').maxLength = 30;
 }
 
 export function collectItems() {
