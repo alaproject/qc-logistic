@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#173f3f">
+  <title>QC Logistik Tenant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <div id="app" class="min-h-screen">
+    <section id="login-view" class="view min-h-screen grid place-items-center px-5 py-10">
+      <div class="login-shell w-full max-w-md">
+        <div class="brand-mark"><span class="material-icons-round">fact_check</span></div>
+        <p class="eyebrow">QC LOGISTIK</p>
+        <h1 class="mt-2 text-4xl font-extrabold tracking-tight">Kontrol muatan,<br><span class="text-accent">lebih tenang.</span></h1>
+        <p class="mt-4 max-w-sm text-slate-600">Masuk sebagai administrator untuk mencatat dan meninjau batch ekspedisi tenant.</p>
+        <form id="login-form" class="panel mt-8 space-y-4" novalidate>
+          <div><label for="login-username">Username</label><input id="login-username" required autocomplete="username" placeholder="admin"></div>
+          <div><label for="login-password">Password</label><input id="login-password" required type="password" autocomplete="current-password" placeholder="Masukkan password"></div>
+          <p id="login-message" class="form-message" aria-live="polite"></p>
+          <button class="primary-button w-full" type="submit"><span class="material-icons-round">login</span>Masuk ke aplikasi</button>
+        </form>
+        <p class="mt-5 text-center text-xs text-slate-500">MVP lokal untuk operasional QC lapangan</p>
+      </div>
+    </section>
+
+    <section id="app-view" class="view hidden">
+      <header class="app-header"><div class="page-wrap flex flex-wrap items-center justify-between gap-4 py-5"><div class="flex items-center gap-3"><div class="small-mark"><span class="material-icons-round">local_shipping</span></div><div><p class="eyebrow text-teal-100">QC LOGISTIK TENANT</p><h1 class="text-xl font-extrabold text-white">Batch Control Desk</h1></div></div><div class="flex items-center gap-3"><span id="session-user" class="hidden text-sm text-teal-100 sm:block"></span><button id="logout-button" class="ghost-button" type="button"><span class="material-icons-round">logout</span><span class="hidden sm:inline">Logout</span></button></div></div></header>
+      <nav class="tab-bar" aria-label="Navigasi utama"><div class="page-wrap flex gap-1 overflow-x-auto"><button class="tab-button active" data-view="dashboard-view" type="button"><span class="material-icons-round">dashboard</span>Dashboard</button><button class="tab-button" data-view="form-view" type="button"><span class="material-icons-round">add_box</span>Input QC</button></div></nav>
+      <main class="page-wrap py-7 md:py-10">
+        <section id="dashboard-view" class="sub-view"><div class="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><p class="eyebrow text-teal-700">RINGKASAN OPERASIONAL</p><h2 class="page-title">History batch QC</h2><p class="mt-2 text-slate-600">Pantau status pemeriksaan muatan tenant dalam satu tempat.</p></div><button id="new-batch-button" class="primary-button" type="button"><span class="material-icons-round">add</span>Batch baru</button></div><div class="stats-grid"><article class="stat-card"><span class="material-icons-round text-slate-500">inventory_2</span><p>Total batch</p><strong id="stat-total">0</strong></article><article class="stat-card stat-pass"><span class="material-icons-round">verified</span><p>Lolos QC</p><strong id="stat-pass">0</strong></article><article class="stat-card stat-note"><span class="material-icons-round">warning</span><p>Perlu catatan</p><strong id="stat-note">0</strong></article><article class="stat-card stat-pending"><span class="material-icons-round">pending_actions</span><p>Belum verifikasi</p><strong id="stat-pending">0</strong></article></div><div class="panel mt-8"><div class="mb-5 flex flex-col gap-3 md:flex-row"><div class="search-field"><span class="material-icons-round">search</span><input id="search-batch" type="search" placeholder="Cari batch, tenant, plat, pengemudi..." aria-label="Cari batch"></div><select id="status-filter" aria-label="Filter status"><option value="Semua">Semua status</option><option>Lolos QC</option><option>Perlu Catatan</option><option>Ditahan</option></select></div><div id="batch-list" class="batch-grid"></div><div id="empty-state" class="empty-state hidden"><span class="material-icons-round">inventory</span><p>Belum ada batch yang sesuai.</p></div></div></section>
+        <section id="form-view" class="sub-view hidden"><div class="mb-7"><p class="eyebrow text-teal-700">FORMULIR LAPANGAN</p><h2 class="page-title">Input QC logistik</h2><p class="mt-2 text-slate-600">Lengkapi data batch sebelum muatan diberangkatkan.</p></div><form id="qc-form" class="panel space-y-8" novalidate><fieldset><legend>Identitas batch</legend><div class="form-grid four"><div><label for="batch-id">ID batch</label><input id="batch-id" required placeholder="QC-20260910-001"></div><div><label for="tanggal">Tanggal QC</label><input id="tanggal" required type="date"></div><div><label for="tenant">Tenant</label><input id="tenant" required></div><div><label for="petugas-qc">Petugas QC</label><input id="petugas-qc" required></div></div></fieldset><fieldset><legend>Data armada</legend><div class="form-grid four"><div><label for="jenis-kendaraan">Jenis kendaraan</label><select id="jenis-kendaraan" required><option value="">Pilih jenis</option><option>Motor Box</option><option>Mobil Box</option><option>Pick Up</option><option>Truk</option><option>Kontainer</option></select></div><div><label for="plat-nomor">Plat nomor</label><input id="plat-nomor" required></div><div><label for="nama-pengemudi">Nama pengemudi</label><input id="nama-pengemudi" required></div><div><label for="no-hp">No. HP</label><input id="no-hp" required type="tel"></div></div></fieldset><fieldset><legend>Detail pemeriksaan muatan</legend><div class="items-header"><label>Daftar barang</label><button id="add-item-button" class="secondary-button" type="button"><span class="material-icons-round">add</span>Tambah barang</button></div><div id="item-rows" class="space-y-3"></div><div class="form-grid two mt-5"><div><label for="catatan-qc">Catatan QC</label><textarea id="catatan-qc" rows="4" placeholder="Contoh: satu dus perlu penanganan khusus karena rawan pecah"></textarea></div><div><label for="status-qc">Status batch</label><select id="status-qc" required><option value="">Pilih status</option><option>Lolos QC</option><option>Perlu Catatan</option><option>Ditahan</option></select><label class="check-row mt-5"><input id="verifikasi-qc" type="checkbox"><span>Saya sudah memverifikasi data QC ini</span></label></div></div></fieldset><div class="form-actions"><p id="form-message" class="form-message" aria-live="polite"></p><button class="primary-button" type="submit"><span class="material-icons-round">save</span>Simpan batch</button></div></form></section>
+      </main>
+    </section>
+  </div>
+  <div id="detail-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div class="modal-card"><div class="modal-head"><div><p class="eyebrow text-teal-700">DETAIL BATCH</p><h2 id="detail-title" class="text-xl font-extrabold"></h2></div><button id="close-detail" class="icon-button" type="button" aria-label="Tutup detail"><span class="material-icons-round">close</span></button></div><div id="detail-content" class="modal-content"></div><div class="modal-actions"><button id="print-detail" class="primary-button" type="button"><span class="material-icons-round">picture_as_pdf</span>Generate PDF</button></div></div></div>
+  <div id="manifest-print" class="manifest-page" aria-hidden="true"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
