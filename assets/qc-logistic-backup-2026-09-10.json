@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "exportedAt": "2026-09-10T04:42:53.966Z",
+  "records": [
+    {
+      "id": "backup-1",
+      "createdAt": "2026-09-10T00:00:00.000Z",
+      "batchId": "QC-BACKUP-001",
+      "date": "2026-09-10",
+      "tenant": "Backup Tenant",
+      "officer": "Admin",
+      "vehicle": "Mobil Box",
+      "plate": "B 1111 BK",
+      "driver": "Driver",
+      "phone": "08123456789",
+      "items": [
+        {
+          "nama": "Box",
+          "jumlah": "2",
+          "satuan": "pcs",
+          "kategori": "Bahan Baku",
+          "kondisi": "Baik"
+        }
+      ],
+      "notes": "",
+      "status": "Lolos QC",
+      "verified": true
+    }
+  ]
+}
